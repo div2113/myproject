@@ -1,0 +1,36 @@
+cat > templates/logs.html <<'HTML'
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Live Logs</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    #logs { max-width: 900px; margin:auto; background:#f8f8f8; padding:10px; border-radius:6px; }
+    .entry { padding:6px; border-bottom:1px solid #eee; }
+  </style>
+</head>
+<body>
+  <h2>Live Activity Logs</h2>
+  <div id="logs"></div>
+
+<script>
+  const socket = io('/logs');
+  const box = document.getElementById('logs');
+
+  socket.on('connect', () => {
+    const el = document.createElement('div'); el.className='entry'; el.innerText = '[info] connected to logs';
+    box.prepend(el);
+  });
+
+  socket.on('new_log', (data) => {
+    const el = document.createElement('div');
+    el.className = 'entry';
+    el.innerText = `${data.ts}  ${data.event}  ${JSON.stringify(data.details)}`;
+    box.prepend(el);
+  });
+</script>
+</body>
+</html>
+HTML

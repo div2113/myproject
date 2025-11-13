@@ -1,18 +1,106 @@
-<!DOCTYPE html>
+cat > templates/login.html <<'HTML'
+<!doctype html>
 <html>
 <head>
-    <title>Login Page</title>
+  <meta charset="utf-8" />
+  <title>Login</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .box { max-width: 400px; margin: auto; }
+    label, input, button { display:block; width:100%; margin-bottom:10px; }
+    .lang { margin-bottom: 20px; }
+    #msg { margin-top:10px; }
+  </style>
 </head>
 <body>
-    <h2>Login</h2>
-    <form action="/login" method="POST">
-        <label>Email:</label><br>
-        <input type="text" name="email" required><br><br>
+  <div class="box">
+    <div class="lang">
+      <label for="langSelect">Choose language:</label>
+      <select id="langSelect">
+        <option value="en">English</option>
+        <option value="hi">हिन्दी</option>
+        <option value="mr">मराठी</option>
+        <option value="ta">தமிழ்</option>
+        <option value="bn">বাংলা</option>
+      </select>
+    </div>
 
-        <label>Password:</label><br>
-        <input type="password" name="password" required><br><br>
+    <h2 id="title">Login Page</h2>
 
-        <button type="submit">Login</button>
+    <form id="loginForm" onsubmit="return false;">
+      <label id="emailLabel" for="email">Email</label>
+      <input id="email" name="email" type="text" required />
+
+      <label id="passwordLabel" for="password">Password</label>
+      <input id="password" name="password" type="password" required />
+
+      <button id="loginBtn" type="submit">Login</button>
     </form>
-</html>
+
+    <div id="msg"></div>
+  </div>
+
+<script>
+  const translations = {{ translations|tojson }};
+  let currentLang = "{{ default_lang }}";
+
+  function applyLanguage(lang) {
+    currentLang = lang;
+    const t = translations[lang] || translations['en'];
+    document.getElementById('title').innerText = t.title;
+    document.getElementById('emailLabel').innerText = t.email;
+    document.getElementById('passwordLabel').innerText = t.password;
+    document.getElementById('loginBtn').innerText = t.login;
+    document.getElementById('msg').innerText = '';
+  }
+
+  document.getElementById('langSelect').value = currentLang;
+  applyLanguage(currentLang);
+
+  const socket = io('/logs');
+
+  socket.on('connect', () => {
+    socket.emit('user_event', { event: 'page_view', ts: new Date().toISOString(), lang: currentLang });
+  });
+
+  document.getElementById('langSelect').addEventListener('change', (e) => {
+    applyLanguage(e.target.value);
+    socket.emit('user_event', { event: 'lang_select', lang: e.target.value, ts: new Date().toISOString() });
+  });
+
+  const emailInput = document.getElementById('email');
+  emailInput.addEventListener('focus', () => {
+    socket.emit('user_event', { event: 'focus_email', ts: new Date().toISOString() });
+  });
+  emailInput.addEventListener('input', () => {
+    socket.emit('user_event', { event: 'typing_email', ts: new Date().toISOString(), length: emailInput.value.length });
+  });
+
+  const passwordInput = document.getElementById('password');
+  passwordInput.addEventListener('focus', () => {
+    socket.emit('user_event', { event: 'focus_password', ts: new Date().toISOString() });
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    socket.emit('user_event', { event: 'submit', ts: new Date().toISOString(), email: email, lang: currentLang });
+
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, lang: currentLang })
+    });
+
+    const data = await res.json();
+    document.getElementById('msg').innerText = data.message || (data.status === 'success' ? 'OK' : 'Error');
+
+    socket.emit('user_event', { event: 'login_response', ts: new Date().toISOString(), status: data.status, message: data.message });
+  });
+</script>
 </body>
+</html>
+HTML
+
